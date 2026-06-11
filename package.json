@@ -7,7 +7,7 @@
   "license": "MIT",
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Other"],
-  "icon": "assets/icon.svg",
+  "icon": "assets/icon.png",
   "activationEvents": ["onStartupFinished"],
   "main": "./src/extension.js",
   "contributes": {

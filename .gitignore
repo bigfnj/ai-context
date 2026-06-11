@@ -3,3 +3,10 @@ node_modules/
 .vscode-test/
 out/
 dist/
+CLAUDE.md
+.github/copilot-instructions.md
+AGENTS.md
+.cursorrules
+.windsurfrules
+SESSION_LOG*.md
+SESSION_HANDOFF*.md

@@ -8,7 +8,7 @@ const {
     formatRelativeTime, checkContextHealth, isArchStale,
 } = require('./context');
 const { autoInject } = require('./inject');
-const { readClaudeRunSettings, applyClaudeSetting } = require('./permissions');
+// permissions module used only for server-side message handling (removePerm, etc.)
 const { isHookInstalled, writeActiveContext } = require('./hook');
 
 const ACTIVE_KEY = 'ai.activeContext';
@@ -78,7 +78,6 @@ class SettingsViewProvider {
             };
         });
 
-        const claudeSettings = readClaudeRunSettings();
         const perms = activeCtx?.perms?.allow || [];
 
         const settings = {
@@ -102,7 +101,6 @@ class SettingsViewProvider {
             templates,
             archived,
             settings,
-            claudeSettings,
             perms,
             hookInstalled: isHookInstalled(),
             allAgents: ALL_AGENTS,
@@ -119,8 +117,13 @@ class SettingsViewProvider {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); color: var(--vscode-foreground); background: var(--vscode-sideBar-background); padding: 8px; }
-  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--vscode-descriptionForeground); margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--vscode-panel-border); }
-  h2:first-of-type { margin-top: 4px; }
+  details { margin-top: 4px; }
+  details + details { margin-top: 2px; }
+  summary { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--vscode-descriptionForeground); padding: 4px 0; border-bottom: 1px solid var(--vscode-panel-border); cursor: pointer; user-select: none; list-style: none; display: flex; align-items: center; gap: 4px; }
+  summary::before { content: '▸'; font-size: 10px; transition: transform 0.1s; display: inline-block; }
+  details[open] > summary::before { transform: rotate(90deg); }
+  summary:hover { color: var(--vscode-foreground); }
+  details > :not(summary) { padding-top: 6px; }
   .card { background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 8px 10px; margin-bottom: 8px; }
   .card-label { font-size: 11px; color: var(--vscode-descriptionForeground); }
   .card-value { font-weight: 600; font-size: 13px; margin-top: 2px; word-break: break-all; }
@@ -164,7 +167,7 @@ class SettingsViewProvider {
 <script>
 (function() {
 const { active, activeInfo, contexts, templates, archived, settings,
-        claudeSettings, perms, hookInstalled, allAgents } = DATA;
+        perms, hookInstalled, allAgents } = DATA;
 
 const root = document.getElementById('root');
 const vsc = acquireVsCodeApi();
@@ -187,11 +190,11 @@ function h(tag, attrs, ...children) {
     return el;
 }
 
-function section(title, ...children) {
-    const el = document.createElement('div');
-    el.appendChild(h('h2', null, title));
-    for (const c of children) { if (c) el.appendChild(c); }
-    return el;
+function section(title, open, ...children) {
+    const details = h('details', open ? { open: '' } : {});
+    details.appendChild(h('summary', null, title));
+    for (const c of children) { if (c) details.appendChild(c); }
+    return details;
 }
 
 function btn(label, cls, onClick) {
@@ -300,71 +303,6 @@ function renderHook() {
     return wrap;
 }
 
-// ── Claude Settings ──────────────────────────────────────────────────────────
-function renderClaudeSettings() {
-    const wrap = document.createElement('div');
-    const cs   = claudeSettings;
-
-    function row(label, sub, child) {
-        const el = h('div', { className: 'toggle-row' });
-        const lf = h('div', null, h('div', { className: 'toggle-label' }, label));
-        if (sub) lf.appendChild(h('div', { className: 'toggle-sub' }, sub));
-        el.appendChild(lf);
-        el.appendChild(child);
-        return el;
-    }
-
-    function checkbox(checked, onChange) {
-        const cb = h('input', { type: 'checkbox' });
-        cb.checked = checked;
-        cb.addEventListener('change', () => onChange(cb.checked));
-        return cb;
-    }
-
-    // Model
-    const modelSel = h('select', null);
-    for (const m of ['', 'claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5-20251001']) {
-        const opt = h('option', { value: m }, m || '(default)');
-        if (cs.model === m) opt.selected = true;
-        modelSel.appendChild(opt);
-    }
-    modelSel.addEventListener('change', () => send('claudeSetting', { key: 'model', value: modelSel.value || null }));
-    wrap.appendChild(row('Model', null, modelSel));
-
-    // Effort
-    const effortSel = h('select', null);
-    for (const e of ['', 'low', 'normal', 'high']) {
-        const opt = h('option', { value: e }, e || '(default)');
-        if (cs.effortLevel === e) opt.selected = true;
-        effortSel.appendChild(opt);
-    }
-    effortSel.addEventListener('change', () => send('claudeSetting', { key: 'effortLevel', value: effortSel.value || null }));
-    wrap.appendChild(row('Effort Level', null, effortSel));
-
-    // Permission mode
-    const modeSel = h('select', null);
-    for (const m of ['default', 'acceptEdits', 'bypassPermissions']) {
-        const opt = h('option', { value: m }, m);
-        if (cs.permDefaultMode === m) opt.selected = true;
-        modeSel.appendChild(opt);
-    }
-    modeSel.addEventListener('change', () => send('claudeSetting', { key: 'permissions.defaultMode', value: modeSel.value }));
-    wrap.appendChild(row('Permission Mode', null, modeSel));
-
-    // Toggles
-    const toggles = [
-        { label: 'Always Thinking',    key: 'alwaysThinkingEnabled',    val: cs.alwaysThinkingEnabled },
-        { label: 'Auto Compact',       key: 'autoCompactEnabled',       val: cs.autoCompactEnabled },
-        { label: 'File Checkpointing', key: 'fileCheckpointingEnabled', val: cs.fileCheckpointingEnabled },
-        { label: 'Fast Mode',          key: 'fastMode',                 val: cs.fastMode },
-        { label: 'Show Thinking',      key: 'showThinkingSummaries',    val: cs.showThinkingSummaries },
-    ];
-    for (const t of toggles) {
-        wrap.appendChild(row(t.label, null, checkbox(t.val, val => send('claudeSetting', { key: t.key, value: val }))));
-    }
-    return wrap;
-}
-
 // ── Behaviour ───────────────────────────────────────────────────────────────
 function renderBehaviour() {
     const wrap = document.createElement('div');
@@ -458,14 +396,13 @@ function renderTemplates() {
 }
 
 // ── Build page ───────────────────────────────────────────────────────────────
-root.appendChild(section('Active Context', renderActive()));
-root.appendChild(section('Contexts', renderContexts()));
-root.appendChild(section('Claude Code Hook', renderHook()));
-root.appendChild(section('Claude Settings', renderClaudeSettings()));
-root.appendChild(section('Behaviour', renderBehaviour()));
-root.appendChild(section('Agents', renderAgents()));
-root.appendChild(section('Permissions', renderPerms()));
-root.appendChild(section('Templates', renderTemplates()));
+root.appendChild(section('Active Context', true,  renderActive()));
+root.appendChild(section('Contexts',       true,  renderContexts()));
+root.appendChild(section('Hook',           true,  renderHook()));
+root.appendChild(section('Behaviour',      false, renderBehaviour()));
+root.appendChild(section('Agents',         false, renderAgents()));
+root.appendChild(section('Permissions',    true,  renderPerms()));
+root.appendChild(section('Templates',      false, renderTemplates()));
 
 })();
 </script>
@@ -497,13 +434,6 @@ root.appendChild(section('Templates', renderTemplates()));
         if (msg.type === 'setting') {
             const { key, value } = msg.payload;
             await config.update(key, value, vscode.ConfigurationTarget.Global);
-            this.refresh();
-            return;
-        }
-
-        if (msg.type === 'claudeSetting') {
-            const { key, value } = msg.payload;
-            applyClaudeSetting(key, value);
             this.refresh();
             return;
         }
