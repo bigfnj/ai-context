@@ -4,11 +4,12 @@ const fs = require('fs');
 const os = require('os');
 
 const {
-    getCtxDir, listContexts, loadContext, listArchivedContexts, listTemplates,
+    getCtxDir, listContexts, loadContext, saveContext, listArchivedContexts, listTemplates,
     formatRelativeTime, checkContextHealth, isArchStale,
 } = require('./context');
-const { readClaudeRunSettings, applyClaudeSetting, readClaudeSettings, writeClaudeSettings } = require('./permissions');
-const { isHookInstalled } = require('./hook');
+const { autoInject } = require('./inject');
+const { readClaudeRunSettings, applyClaudeSetting } = require('./permissions');
+const { isHookInstalled, writeActiveContext } = require('./hook');
 
 const ACTIVE_KEY = 'ai.activeContext';
 const ALL_AGENTS = ['claude', 'copilot', 'cursor', 'windsurf', 'kilo'];
@@ -486,12 +487,9 @@ root.appendChild(section('Templates', renderTemplates()));
         if (msg.type === 'activate') {
             const name = msg.payload.name;
             if (!name) return;
-            const { loadContext: lc, autoInject: ai } = require('./inject');
             this._wsState.update('ai.activeContext', name);
-            const { autoInject: injectFn } = require('./inject');
-            injectFn(loadContext(ctxDir, name));
-            const { writeActiveContext: wac } = require('./hook');
-            wac(name);
+            autoInject(loadContext(ctxDir, name));
+            writeActiveContext(name);
             this.refresh();
             return;
         }
@@ -514,8 +512,7 @@ root.appendChild(section('Templates', renderTemplates()));
             if (!active) return;
             const ctx  = loadContext(ctxDir, active);
             const allow = (ctx.perms?.allow || []).filter(p => p !== msg.payload.perm);
-            const { saveContext: sc } = require('./context');
-            sc(ctxDir, active, { ...ctx, perms: { allow } });
+            saveContext(ctxDir, active, { ...ctx, perms: { allow } });
             this.refresh();
             return;
         }
@@ -523,7 +520,6 @@ root.appendChild(section('Templates', renderTemplates()));
         if (msg.type === 'createFromTemplate') {
             await vscode.commands.executeCommand('ai.newContextFromTemplate');
             this.refresh();
-            return;
         }
     }
 }
