@@ -613,6 +613,34 @@ function testEnsureUntrackedInGitNoOp() {
     fs.rmSync(dir, { recursive: true, force: true });
 }
 
+function testGetGlobalTargetsProjectsOnly() {
+    const home = os.homedir();
+    settings.projectsRoot = '';  // use default (~/projects)
+
+    // Project under ~/projects — should get global injection
+    const underProjects = path.join(home, 'projects', 'my-project');
+    const targets = inject.getGlobalTargets(underProjects);
+    assert.ok(targets.length > 0, 'expected global target for project under ~/projects');
+    assert.ok(targets[0].includes('.claude'), 'global target should be in ~/.claude/');
+
+    // Home directory itself — should NOT get global injection
+    assert.strictEqual(inject.getGlobalTargets(home).length, 0,
+        'home dir root should not trigger global injection');
+
+    // Dir outside ~/projects — should NOT get global injection
+    assert.strictEqual(inject.getGlobalTargets('/tmp/random-project').length, 0,
+        'dir outside projects root should not trigger global injection');
+
+    // Explicit projectsRoot override
+    settings.projectsRoot = path.join(home, 'work');
+    assert.ok(inject.getGlobalTargets(path.join(home, 'work', 'proj')).length > 0,
+        'should respect custom projectsRoot override');
+    assert.strictEqual(inject.getGlobalTargets(underProjects).length, 0,
+        '~/projects project should be excluded when projectsRoot overridden to ~/work');
+
+    settings.projectsRoot = '';  // restore default
+}
+
 // ── Run all ───────────────────────────────────────────────────────────────────
 
 testContextMemoryNormalization();
@@ -648,5 +676,6 @@ testTemplates();
 testScanAndCreateContexts();
 testGitignoreSeedPatterns();
 testEnsureUntrackedInGitNoOp();
+testGetGlobalTargetsProjectsOnly();
 
 console.log('unit tests passed');

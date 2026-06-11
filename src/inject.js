@@ -104,13 +104,25 @@ function getInjectionTargets(root) {
 // Returns agent-specific paths that are global (outside any project root) — e.g.
 // ~/.claude/CLAUDE.md which Claude Code reads on every session regardless of CWD.
 // These are injected alongside project targets but are never gitignored.
-function getGlobalTargets() {
+// Only applies when the context root is under projectsRoot (~/projects by default) —
+// home-directory or other top-level roots are excluded.
+function getGlobalTargets(root) {
     const agents = getAgents();
-    const targets = [];
-    if (agents.includes('claude')) {
-        targets.push(path.join(os.homedir(), '.claude', 'CLAUDE.md'));
+    if (!agents.includes('claude')) return [];
+
+    if (root) {
+        const config = vscode.workspace.getConfiguration('aiContext');
+        const raw = (config.get('projectsRoot') || '').trim();
+        const projectsRoot = raw
+            ? path.resolve(raw.replace(/^~(?=\/|$)/, os.homedir()))
+            : path.join(os.homedir(), 'projects');
+        const normalized = path.resolve(normalizePath(root));
+        if (!normalized.startsWith(projectsRoot + path.sep) && normalized !== projectsRoot) {
+            return [];
+        }
     }
-    return targets;
+
+    return [path.join(os.homedir(), '.claude', 'CLAUDE.md')];
 }
 
 function asArray(value) { return Array.isArray(value) ? value : []; }
@@ -447,7 +459,7 @@ function autoInjectMulti(primaryCtx, secondaryCtxs) {
 
     const block         = buildMultiInjectionBlock(allCtxs, storePaths);
     const targets       = getInjectionTargets(root);
-    const globalTargets = getGlobalTargets();
+    const globalTargets = getGlobalTargets(root);
 
     for (const filePath of [...targets, ...globalTargets]) injectIntoFile(filePath, block);
     for (const filePath of targets) ensureUntrackedInGit(filePath, root);
@@ -461,7 +473,7 @@ function clearInjectionForContext(ctx) {
     const root = getValidContextRoot(ctx);
     if (!root) return false;
     for (const filePath of getInjectionTargets(root)) clearInjection(filePath);
-    for (const filePath of getGlobalTargets()) clearInjection(filePath);
+    for (const filePath of getGlobalTargets(root)) clearInjection(filePath);
     return true;
 }
 
