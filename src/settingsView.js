@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 
 const {
-    getCtxDir, listContexts, loadContext, saveContext, listArchivedContexts, listTemplates,
+    getCtxDir, listContexts, loadContext, saveContext, listArchivedContexts,
     formatRelativeTime, checkContextHealth, isArchStale,
 } = require('./context');
 const { autoInject } = require('./inject');
@@ -12,7 +12,6 @@ const { autoInject } = require('./inject');
 const { isHookInstalled, writeActiveContext } = require('./hook');
 
 const ACTIVE_KEY = 'ai.activeContext';
-const ALL_AGENTS = ['claude', 'copilot', 'cursor', 'windsurf', 'kilo'];
 
 class SettingsViewProvider {
     constructor(extensionUri, wsState) {
@@ -41,9 +40,8 @@ class SettingsViewProvider {
     _getPayload() {
         const ctxDir    = getCtxDir();
         const active    = this._wsState.get(ACTIVE_KEY) || null;
-        const names     = listContexts(ctxDir);
-        const templates = listTemplates(ctxDir);
-        const archived  = listArchivedContexts();
+        const names    = listContexts(ctxDir);
+        const archived = listArchivedContexts();
         const config    = vscode.workspace.getConfiguration('aiContext');
 
         const activeCtx = active ? loadContext(ctxDir, active) : null;
@@ -98,12 +96,10 @@ class SettingsViewProvider {
             active,
             activeInfo,
             contexts,
-            templates,
             archived,
             settings,
             perms,
             hookInstalled: isHookInstalled(),
-            allAgents: ALL_AGENTS,
         };
     }
 
@@ -166,8 +162,7 @@ class SettingsViewProvider {
 <div id="root"></div>
 <script>
 (function() {
-const { active, activeInfo, contexts, templates, archived, settings,
-        perms, hookInstalled, allAgents } = DATA;
+const { active, activeInfo, contexts, archived, settings, perms, hookInstalled } = DATA;
 
 const root = document.getElementById('root');
 const vsc = acquireVsCodeApi();
@@ -334,26 +329,6 @@ function renderBehaviour() {
     return wrap;
 }
 
-// ── Agents ──────────────────────────────────────────────────────────────────
-function renderAgents() {
-    const wrap = document.createElement('div');
-    for (const agent of allAgents) {
-        const row = h('div', { className: 'toggle-row' });
-        row.appendChild(h('div', { className: 'toggle-label' }, agent));
-        const cb = h('input', { type: 'checkbox' });
-        cb.checked = settings.agents.includes(agent);
-        cb.addEventListener('change', () => {
-            const current = settings.agents.slice();
-            if (cb.checked) { if (!current.includes(agent)) current.push(agent); }
-            else { const i = current.indexOf(agent); if (i !== -1) current.splice(i, 1); }
-            send('setting', { key: 'agents', value: current });
-        });
-        row.appendChild(cb);
-        wrap.appendChild(row);
-    }
-    return wrap;
-}
-
 // ── Permissions ──────────────────────────────────────────────────────────────
 function renderPerms() {
     const wrap = document.createElement('div');
@@ -376,33 +351,12 @@ function renderPerms() {
     return wrap;
 }
 
-// ── Templates ───────────────────────────────────────────────────────────────
-function renderTemplates() {
-    const wrap = document.createElement('div');
-    if (templates.length === 0) {
-        wrap.appendChild(h('div', { className: 'section-empty' }, 'No templates. Save a context as a template to reuse it.'));
-    } else {
-        for (const t of templates) {
-            const row = h('div', { className: 'ctx-item' });
-            row.appendChild(h('span', { className: 'ctx-name' }, t));
-            row.appendChild(btn('Use', 'secondary', () => send('createFromTemplate', { template: t })));
-            wrap.appendChild(row);
-        }
-    }
-    const row = h('div', { className: 'btn-row', style: 'margin-top:4px' });
-    row.appendChild(btn('Save current as template', 'secondary', () => send('cmd', { command: 'ai.saveAsTemplate' })));
-    wrap.appendChild(row);
-    return wrap;
-}
-
 // ── Build page ───────────────────────────────────────────────────────────────
 root.appendChild(section('Active Context', true,  renderActive()));
 root.appendChild(section('Contexts',       true,  renderContexts()));
 root.appendChild(section('Hook',           true,  renderHook()));
-root.appendChild(section('Behaviour',      false, renderBehaviour()));
-root.appendChild(section('Agents',         false, renderAgents()));
 root.appendChild(section('Permissions',    true,  renderPerms()));
-root.appendChild(section('Templates',      false, renderTemplates()));
+root.appendChild(section('Behaviour',      false, renderBehaviour()));
 
 })();
 </script>
