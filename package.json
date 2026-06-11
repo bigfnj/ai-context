@@ -1,0 +1,131 @@
+{
+  "name": "ai-context",
+  "displayName": "AI Context",
+  "description": "Persistent AI session memory — injects architecture and session state so agents orient instantly without re-auditing the codebase on every conversation.",
+  "version": "1.0.0",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "icon": "assets/icon.svg",
+  "activationEvents": ["onStartupFinished"],
+  "main": "./src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aiContextSidebar",
+          "title": "AI Context",
+          "icon": "assets/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aiContextSidebar": [
+        {
+          "type": "webview",
+          "id": "aiContext.settingsView",
+          "name": "AI Context"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "ai.setActiveContext",    "title": "AI Context: Set Active Context" },
+      { "command": "ai.viewContext",         "title": "AI Context: View Context" },
+      { "command": "ai.newContext",          "title": "AI Context: New Context" },
+      { "command": "ai.deleteContext",       "title": "AI Context: Delete Context" },
+      { "command": "ai.cleanUpContexts",     "title": "AI Context: Clean Up Archived Contexts" },
+      { "command": "ai.restoreContext",      "title": "AI Context: Restore Archived Context" },
+      { "command": "ai.reinjectContext",     "title": "AI Context: Re-Inject Active Context" },
+      { "command": "ai.managePermissions",   "title": "AI Context: Manage Permissions" },
+      { "command": "ai.config",              "title": "AI Context: Config" },
+      { "command": "ai.openSettingsPanel",   "title": "AI Context: Open Settings Panel" },
+      { "command": "ai.duplicateContext",    "title": "AI Context: Duplicate Context" },
+      { "command": "ai.searchContexts",      "title": "AI Context: Search Contexts" },
+      { "command": "ai.healthCheck",         "title": "AI Context: Health Check" },
+      { "command": "ai.saveAsTemplate",      "title": "AI Context: Save Context as Template" },
+      { "command": "ai.newContextFromTemplate", "title": "AI Context: New Context From Template" },
+      { "command": "ai.installHook",         "title": "AI Context: Install Claude Code Hook" },
+      { "command": "ai.uninstallHook",       "title": "AI Context: Uninstall Claude Code Hook" }
+    ],
+    "keybindings": [
+      { "command": "ai.setActiveContext",  "key": "ctrl+alt+s", "mac": "cmd+alt+s" },
+      { "command": "ai.reinjectContext",   "key": "ctrl+alt+r", "mac": "cmd+alt+r" },
+      { "command": "ai.config",            "key": "ctrl+alt+c", "mac": "cmd+alt+c" },
+      { "command": "ai.searchContexts",    "key": "ctrl+alt+f", "mac": "cmd+alt+f" }
+    ],
+    "configuration": {
+      "title": "AI Context",
+      "properties": {
+        "aiContext.projectsRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Root folder scanned for projects. Defaults to ~/projects."
+        },
+        "aiContext.agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["claude", "copilot", "cursor", "windsurf", "kilo"]
+          },
+          "default": ["claude", "copilot"],
+          "description": "Which agent instruction files to inject context into."
+        },
+        "aiContext.autoDetect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect and switch the active context based on the open file or terminal CWD."
+        },
+        "aiContext.followActiveEditor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Switch active context when the focused editor moves to a file in a different project."
+        },
+        "aiContext.followTerminalCwd": {
+          "type": "boolean",
+          "default": true,
+          "description": "Switch active context when the active terminal changes to a different project directory."
+        },
+        "aiContext.scanOnLaunch": {
+          "type": "boolean",
+          "default": false,
+          "description": "Scan projectsRoot on startup and auto-create missing context entries."
+        },
+        "aiContext.showNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show toast notifications for context switches and updates."
+        },
+        "aiContext.autoGitignore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically add agent instruction files to .gitignore."
+        },
+        "aiContext.maxActions": {
+          "type": "number",
+          "default": 40,
+          "minimum": 5,
+          "maximum": 200,
+          "description": "Maximum recent actions to keep before compacting into history."
+        },
+        "aiContext.contextDir": {
+          "type": "string",
+          "default": "",
+          "description": "Override the default context store directory (~/.ai-context)."
+        },
+        "aiContext.architectureMaxAgeDays": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Number of days before architecture state is considered stale and the agent is asked to re-audit."
+        },
+        "aiContext.preventRemovalCapture": {
+          "type": "boolean",
+          "default": false,
+          "description": "Do not auto-capture destructive shell commands (rm, DROP TABLE, git reset --hard, etc.) into the permission allow-list."
+        }
+      }
+    }
+  }
+}
