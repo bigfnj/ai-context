@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 const { ensureDir, normalizePath, getCtxDir, isArchStale } = require('./context');
@@ -96,6 +97,18 @@ function getInjectionTargets(root) {
                 targets.push(filePath);
             }
         }
+    }
+    return targets;
+}
+
+// Returns agent-specific paths that are global (outside any project root) — e.g.
+// ~/.claude/CLAUDE.md which Claude Code reads on every session regardless of CWD.
+// These are injected alongside project targets but are never gitignored.
+function getGlobalTargets() {
+    const agents = getAgents();
+    const targets = [];
+    if (agents.includes('claude')) {
+        targets.push(path.join(os.homedir(), '.claude', 'CLAUDE.md'));
     }
     return targets;
 }
@@ -432,9 +445,11 @@ function autoInjectMulti(primaryCtx, secondaryCtxs) {
         if (c.p) storePaths[c.p] = path.join(ctxDir, `${c.p}.json`);
     }
 
-    const block   = buildMultiInjectionBlock(allCtxs, storePaths);
-    const targets = getInjectionTargets(root);
-    for (const filePath of targets) injectIntoFile(filePath, block);
+    const block         = buildMultiInjectionBlock(allCtxs, storePaths);
+    const targets       = getInjectionTargets(root);
+    const globalTargets = getGlobalTargets();
+
+    for (const filePath of [...targets, ...globalTargets]) injectIntoFile(filePath, block);
     for (const filePath of targets) ensureUntrackedInGit(filePath, root);
 
     const config = vscode.workspace.getConfiguration('aiContext');
@@ -446,6 +461,7 @@ function clearInjectionForContext(ctx) {
     const root = getValidContextRoot(ctx);
     if (!root) return false;
     for (const filePath of getInjectionTargets(root)) clearInjection(filePath);
+    for (const filePath of getGlobalTargets()) clearInjection(filePath);
     return true;
 }
 
@@ -457,6 +473,7 @@ module.exports = {
     GITIGNORE_SEED_PATTERNS,
     getAgents,
     getInjectionTargets,
+    getGlobalTargets,
     findGitRepoRoots,
     getCodexTargets,
     buildAgentContext,
